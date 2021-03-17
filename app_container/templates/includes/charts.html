@@ -1,0 +1,34 @@
+<!--charts-->
+{% block charts %}
+<div id="charts" class="container mt-3 text-center">
+    <!--LOOP charts-->
+    {% if ids is not none %}
+    {% for key in ids %}
+    <div class="row">
+        <div class="col-12">
+            <div class="container-fluid">
+                <div id="chart{{loop.index}}">
+                    <div id="{{ids[loop.index-1]}}"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {{ element }}
+    {% endfor %}
+    {% endif %}
+</div>
+
+<footer>
+    <script type="text/javascript">
+        // plots the figure with id
+        // id much match the div id above in the html
+        var figures = {{ plotly_figs | safe}};
+        var ids = {{ ids | safe}};
+        for (var i in figures) {
+            Plotly.plot(ids[i],
+                figures[i].data,
+                figures[i].layout || {});
+        }
+    </script>
+</footer>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}
+Dashboard
+{% endblock %}
+
+{% block content %}
+<!-- User input -->
+{% block accordion_form %}
+{% include "includes/accordion_input.html" %}
+{% endblock %}
+<!--charts-->
+{% block charts %}
+{% include "includes/charts.html" %}
+{% endblock %}
+
+{% endblock %}

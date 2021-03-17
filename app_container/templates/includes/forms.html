@@ -1,0 +1,59 @@
+<!-- User input -->
+{% block forms %}
+<!-- INPUT FORM -->
+<div class="container-fluid">
+    <div class="col-12">
+        <!-- Segment form-->
+        <form method="POST">
+            <div class="form-group">
+                {{segment_form.hidden_tag()}}
+                <label> Select segment</label>
+                <div class="input-group">
+                    {{segment_form.segment(class="form-control")}}
+                    <button type="submit" name="update_segment" value="update_segment"
+                        class="btn btn-outline-secondary">
+                        Update
+                    </button>
+                </div>
+
+            </div>
+        </form>
+        {% if segment_form.segment.data %}
+        <!-- Input form-->
+        <form method="POST">
+            <div class="form-group">
+                {{input_form.hidden_tag()}}
+                <div class="input-group">
+                    <label>
+                        Select dates
+                        <p class="text-muted small">Please select at least 2 date values, otherwise no plots will be
+                            generated</p>
+                        </p>
+                    </label>
+                    {{input_form.dates(class="selectpicker w-100")}}
+                </div>
+            </div>
+            <div class="form-group">
+                <div class="input-group">
+                    <label> Select firms</label>
+                    {{input_form.firms(class="selectpicker w-100")}}
+                </div>
+            </div>
+            <div class="form-group">
+                <div class="input-group">
+                    <button type="submit" name="update_input" value="update_input" class="btn btn-dark btn-block">
+                        Submit
+                    </button>
+                </div>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    var myDrop = new drop({
+        selector: '#myMulti'
+    });
+</script>
+{% endblock %}

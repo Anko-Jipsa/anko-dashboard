@@ -1,0 +1,23 @@
+{% block accordion_form %}
+<div id="accordion" role="tablist" aria-multiselectable="true" class="card-collapse">
+    <div class="card card-plain">
+        <div class="card-header" role="tab" id="headingOne">
+            <a data-toggle="collapse" data-parent="#accordion" href="#collapseOne" aria-expanded="true"
+                aria-controls="collapseOne">
+                Show / Hide Inputs
+            </a>
+        </div>
+
+        <div id="collapseOne" class="collapse show" role="tabpanel" aria-labelledby="headingOne">
+            <div class="card-body">
+
+                <!-- INPUT FORMS -->
+                {% block forms %}
+                {% include "includes/forms.html" %}
+                {% endblock %}
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,3 +1,12 @@
+""" Main routes.
+
+# TODO:
+    1. Separate analytics page into each components (ECL, Stage 2, Stage 3, Coverage)
+    2. Touch the asthetics.
+    3. Include deeper analysis.
+    4. Include Macroeconomics...
+    5. etc...
+"""
 from app_container import app
 
 import json

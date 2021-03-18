@@ -1,19 +1,9 @@
 import plotly.graph_objs as go
+import plotly
 import app_container.etl_scripts.data_wrangle as dw
 from app_container.etl_scripts.df_transform import AGG_FUNC_DICT
-from typing import Callable
+from typing import Callable, List
 import pandas as pd
-
-
-def plot_figures(df_dict: dict, date_list: list, firm_list: list):
-
-    figures = []
-    for key, func in AGG_FUNC_DICT.items():
-        fig = plot_quarter_diff(df_dict, date_list, func, firm_list,
-                                "% Change", key)
-        figures.append(dict(data=fig))
-
-    return figures
 
 
 def multiple_bar_chart(df: pd.DataFrame, y_axis: str, title: str = None):
@@ -43,31 +33,22 @@ def multiple_bar_chart(df: pd.DataFrame, y_axis: str, title: str = None):
     return fig
 
 
-def plot_quarter_diff(df_dict: dict,
-                      date_list: list,
-                      transform_func: Callable,
-                      firm_list: list,
-                      y_axis: str,
-                      title: str = None):
-    """ Plot a multiple bars chart for quarter to quarter difference.
-    
-    NOTE:
-    1. X-axis = A list of companies.
-    2. Y-axis = % change.
+def mult_bar_chart_produce(df: pd.DataFrame, y_axis: str) -> List[object]:
+    """ Produce multiple bar charts for DataFrame with Multi-index columns.
 
     Args:
-        df_dict (dict): A dictionary contains multiple DataFrames.
-        date_list (list): A list of dates for difference.
-        transform_func (Callable): A callable function to transform DataFrame.
-        firm_list (list): A list of firms.
-
+        df (pd.DataFrame): DataFrame with Multi-index columns
+        y_axis (str): Y-axis name.
 
     Returns:
-        plotly.graph_objs._figure.Figure: Multiple bars chart for
-            quarter to quarter difference.
+        List[plotly.graph_objs._figure.Figure]: A list of multiple bars chart.
     """
-
-    # QtoQ difference summary table.
-    df = dw.change_summary(df_dict, date_list, transform_func, firm_list)
-
-    return multiple_bar_chart(df, y_axis, title)
+    # Identify the list of multi-index column.
+    items = df.columns.get_level_values(0).unique()[::-1]
+    plot_list = []
+    for i in items:
+        tab = df[[i]]
+        tab.columns = tab.columns.get_level_values(1)
+        fig = multiple_bar_chart(tab, y_axis, i)
+        plot_list.append(fig)
+    return plot_list

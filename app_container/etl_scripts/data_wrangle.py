@@ -1,8 +1,9 @@
 import pandas as pd
 import numpy as np
 import datetime
-from typing import Callable, Tuple, Union
+from typing import Callable, Tuple, Union, List
 from pathlib import Path
+from itertools import combinations
 
 
 def data_preprocess(df: pd.DataFrame) -> pd.DataFrame:
@@ -71,7 +72,7 @@ def df_diff_calc(df: pd.DataFrame) -> pd.Series:
     return df.iloc[:, -1].div(df.iloc[:, -2]) - 1
 
 
-def qq_yy_convert(date_array: Union[np.ndarray, list]) -> list:
+def qq_yy_convert(date_array: Union[np.ndarray, list]) -> List[datetime.date]:
     """ Convert QQYY format date series to machine readable date format.
 
     Args:
@@ -85,21 +86,22 @@ def qq_yy_convert(date_array: Union[np.ndarray, list]) -> list:
                       month=int(date.split("Q")[0]) * 3,
                       day=1) for date in date_array
     ]
+    date_list.sort()
 
     return date_list
 
 
-def df_append_dates(df_dict: dict, date_list: list,
-                    transform_func: Callable) -> pd.DataFrame:
-    """ Transform DataFrames with heterogeneous dates then
-    append all to create a unified DataFrame.
+def pivot_transform_df(df_dict: dict, date_list: list, firm_list,
+                       transform_func: Callable) -> pd.DataFrame:
+    """ Return the pivoted DataFrame after appending 
+    all the DataFrames by date values.
     
     NOTE:
     Sorted by Firm name then Date.
 
     Args:
         df_dict (dict): A dictionary contains multiple DataFrames.
-        date_list (list): A list of dates for difference.
+        date_list (list): A list of dates.
         transform_func (Callable): A callable function to transform DataFrame.
 
     Returns:
@@ -115,102 +117,81 @@ def df_append_dates(df_dict: dict, date_list: list,
 
     # Sort by Firm name then Date.
     table = table.sort_values(by=['Firm', 'Date'], ascending=[True, True])
+    table = table.pivot(columns="Date")
+
+    # Multi-index columns order: Date -> Portfolios.
+    table.columns = table.columns.swaplevel(0, 1)
+    table.sort_index(axis=1, level=0, inplace=True)
     return table
 
 
-def summary_tb_firm(df_dict: dict, date_list: list, transform_func: Callable):
-    """ Generate a dictionary that contains multiple transformed DataFrames.
+def df_filter(df: pd.DataFrame, firm_list: List[str],
+              portfolios: List[str]) -> pd.DataFrame:
+    """ Filter the pivoted DataFrame with:
+    1. Firms
+    2. Portfolios
+
+    Args:
+        df (pd.DataFrame): Pivoted table 
+            (Multi-index columns = (Date, Portfolios), index = firms).
+        firm_list (List[str]): A list of firms.
+        portfolios (List[str]): A list of portfolios.
+
+    Returns:
+        pd.DataFrame: Filtered DataFrame.
+    """
+
+    mask = np.in1d(df.columns.get_level_values(1), portfolios)
+    return df.loc[firm_list, mask]
+
+
+def relative_change_df(df_dict: dict, date_list: List[str],
+                       firm_list: List[str], portfolios: List[str],
+                       transform_func: Callable) -> pd.DataFrame:
+    """ Return the DataFrame with % difference given the aggregation function.
 
     Args:
         df_dict (dict): A dictionary contains multiple DataFrames.
         date_list (list): A list of dates for difference.
+        firm_list (List[str]): A list of firms.
+        portfolios (List[str]): A list of portfolios.
         transform_func (Callable): A callable function to transform DataFrame.
 
     Returns:
-        [type]: [description]
+        pd.DataFrame: DataFrame with relative difference of metrics given dates.
     """
+    table = pivot_transform_df(df_dict, date_list, firm_list, transform_func)
+    table = df_filter(table, firm_list, portfolios)
 
-    table = df_append_dates(df_dict, date_list, transform_func)
+    # A combination of different dates for difference calculations.
+    date_comb = list(
+        combinations(table.columns.get_level_values(0).unique(), 2))
+    tab_list = []  # List of DataFrames
+    for i in date_comb:
+        # Current vs previous dates.
+        mask_old = table.columns.get_level_values(0) == i[0]
+        mask_new = table.columns.get_level_values(0) == i[1]
+        tab_old = table[table.columns[mask_old]]
+        tab_new = table[table.columns[mask_new]]
+        tab = tab_new / tab_old.values - 1
 
-    summary_firm = dict()
-    firm_list = table.index.unique().to_list()
+        # Sensible column names.
+        col_name = (
+            f"{i[1].year}-Q{i[1].month//3} vs {i[0].year}-Q{i[0].month//3}")
+        new_cols = pd.MultiIndex.from_tuples([(col_name, tup[1])
+                                              for tup in tab.columns])
+        tab.columns = new_cols
+        tab_list.append(tab)
 
-    # Summary loop.
-    for i in firm_list:
-        sub_table = table.loc[i, :].T
-
-        # Convert to Date column.
-        sub_table.columns = sub_table.loc["Date", :]
-        sub_table = sub_table.drop(["Date"], axis=0)
-
-        # Change to float.
-        sub_table = sub_table.apply(pd.to_numeric)
-        sub_table["Last QtQ Change"] = df_diff_calc(sub_table)
-
-        summary_firm[i] = sub_table
-        del sub_table
-    return summary_firm
-
-
-def summary_tb_portfolio(df_dict, date_list, transform_func):
-    """ JOIN the list of DataFrames by list of dates
-
-    Args:
-        df_dict ([type]): [description]
-        date_list ([type]): [description]
-        transform_func ([type]): [description]
-
-    Returns:
-        [type]: [description]
-    """
-    # JOINED table.
-    table = df_append_dates(df_dict, date_list, transform_func)
-    summary_firm = dict()  # Initialise the group dictionary.
-
-    for i in table.columns[:-1]:
-        sub_table = table.pivot(columns='Date', values=i)
-        sub_table = sub_table.apply(pd.to_numeric)
-        sub_table["Last QtQ Change"] = df_diff_calc(sub_table)
-        summary_firm[i] = sub_table
-
-    return pd.concat(summary_firm, axis=1)
-
-
-def change_summary(df_dict: dict, date_list: list, transform_func: Callable,
-                   firm_list: list):
-    """ Summary of % between given dates.
-
-    Args:
-        df_dict (dict): A dictionary contains multiple DataFrames.
-        date_list (list): A list of dates for difference.
-        transform_func (Callable): Aggregation function for summary table.
-        firm_list (list): A list of firms.
-
-    Returns:
-        pd.DataFrame: Summary table for difference.
-    """
-    # QtoQ difference summary table.
-    df = summary_tb_portfolio(df_dict, date_list, transform_func)
-
-    # Filter for Q to Q change.
-    mask = df.columns.get_level_values(1) == "Last QtQ Change"
-    df = df[df.columns[mask]]
-    df.columns = df.columns.droplevel(1)
-    df = df.dropna(axis=0, how="all")
-
-    # Filter dataframe by firms and portfolios.
-    df = df.reindex(index=firm_list,
-                    columns=[
-                        "Total", "Mortgages",
-                        "Consumer Lending (including Auto Finance)",
-                        "Corporate & Commercial"
-                    ])
-    return df
+    return pd.concat(tab_list, axis=1)
 
 
 PATH = Path(__file__).parents[1] / "dataset"
 DATA_PATH = {"UK": r"dataset/UK/", "GROUP": r"dataset/GROUP/"}
-
+PORTFOLIOS = [
+    "Total Loans & Advances", "Mortgages",
+    "Consumer Lending (including Auto Finance)", "Corporate & Commercial"
+]
 data_list = {
     'UK': ['4Q20.xlsx', '4Q19.xlsx', '2Q20.xlsx'],
     'GROUP': ['4Q20.xlsx', '4Q19.xlsx', '2Q20.xlsx']
